@@ -1,0 +1,17 @@
+bin/
+dist/
+tmp/
+coverage.out
+*.log
+*.out
+*.test
+.env
+.DS_Store
+
+# Local config and storage
+config/local.yaml
+storage/*.db
+
+# IDE
+.idea/
+.vscode/
