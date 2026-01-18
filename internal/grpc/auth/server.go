@@ -103,9 +103,9 @@ func (s *serverAPI) Login(
 			return nil, status.Error(codes.NotFound, "app not found")
 		}
 		if errors.Is(err, auth.ErrInvalidCredentials) {
-			return nil, status.Error(codes.InvalidArgument, err.Error())
+			return nil, status.Error(codes.InvalidArgument, "invalid email or password")
 		}
-		return nil, status.Error(codes.Internal, err.Error())
+		return nil, status.Error(codes.Internal, "internal server error")
 	}
 
 	return &ssov1.LoginResponse{
