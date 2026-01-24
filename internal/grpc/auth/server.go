@@ -22,16 +22,16 @@ type Auth interface {
 		email string,
 		password string,
 		appID int,
-	) (token string, err error)
+	) (accessToken, refreshToken string, err error)
 	Register(
 		ctx context.Context,
 		email string,
 		password string,
 	) (userID int64, err error)
-	IsAdmin(
+	Refresh(
 		ctx context.Context,
-		userID int,
-	) (bool, error)
+		refreshToken string,
+	) (newAccessToken, newRefreshToken string, err error)
 	App(
 		ctx context.Context,
 		appID int,
@@ -92,7 +92,7 @@ func (s *serverAPI) Login(
 		return nil, status.Error(codes.InvalidArgument, "app id is required")
 	}
 
-	token, err := s.auth.Login(
+	accessToken, refreshToken, err := s.auth.Login(
 		ctx,
 		req.GetEmail(),
 		req.GetPassword(),
@@ -109,26 +109,38 @@ func (s *serverAPI) Login(
 	}
 
 	return &ssov1.LoginResponse{
-		Token: token,
+		AccessToken:  accessToken,
+		RefreshToken: refreshToken,
 	}, nil
 }
 
-func (s *serverAPI) IsAdmin(
+func (s *serverAPI) Refresh(
 	ctx context.Context,
-	req *ssov1.IsAdminRequest,
-) (*ssov1.IsAdminResponse, error) {
-	isAdmin, err := s.auth.IsAdmin(
+	req *ssov1.RefreshRequest,
+) (*ssov1.RefreshResponse, error) {
+	if req.GetRefreshToken() == "" {
+		return nil, status.Error(codes.InvalidArgument, "refresh_token is required")
+	}
+
+	newAccessToken, newRefreshToken, err := s.auth.Refresh(
 		ctx,
-		int(req.GetUserId()),
+		req.GetRefreshToken(),
 	)
 	if err != nil {
-		if errors.Is(err, auth.ErrUserNotFound) {
-			return nil, status.Error(codes.NotFound, "user not found")
+		if errors.Is(err, auth.ErrInvalidRefreshToken) {
+			return nil, status.Error(codes.Unauthenticated, "invalid refresh token")
+		}
+		if errors.Is(err, auth.ErrRefreshTokenExpired) {
+			return nil, status.Error(codes.Unauthenticated, "refresh token expired")
+		}
+		if errors.Is(err, auth.ErrRefreshTokenRevoked) {
+			return nil, status.Error(codes.Unauthenticated, "refresh token revoked")
 		}
 		return nil, status.Error(codes.Internal, "internal server error")
 	}
 
-	return &ssov1.IsAdminResponse{
-		IsAdmin: isAdmin,
+	return &ssov1.RefreshResponse{
+		AccessToken:  newAccessToken,
+		RefreshToken: newRefreshToken,
 	}, nil
 }

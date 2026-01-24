@@ -1,48 +1,58 @@
 package main
 
 import (
+	"context"
 	"flag"
 	"fmt"
+	"log"
+	"os"
+	"time"
 
-	// Библиотека для работы с миграциями
-	"github.com/golang-migrate/migrate/v4"
-	// Драйвер для работы с SQLite
-	_ "github.com/golang-migrate/migrate/v4/database/sqlite3"
-	// Источник для работы с файлами
-	_ "github.com/golang-migrate/migrate/v4/source/file"
+	"sso/internal/config"
+	"sso/internal/storage/mongodb"
 )
 
 func main() {
-	var storagePath, migrationsPath, migrationsTable string
-	flag.StringVar(&storagePath, "storage-path", "", "path to storage file")
-	flag.StringVar(&migrationsPath, "migrations-path", "", "path to migrations directory")
-	flag.StringVar(&migrationsTable, "migrations-table", "", "name of migrations table")
+	var configPath string
+	var seedApps bool
+	flag.StringVar(&configPath, "config", "", "path to config file (or use CONFIG_PATH env)")
+	flag.BoolVar(&seedApps, "seed", false, "seed test apps into database")
 	flag.Parse()
 
-	if storagePath == "" {
-		panic("storage path is required")
+	if configPath == "" {
+		configPath = os.Getenv("CONFIG_PATH")
 	}
 
-	if migrationsPath == "" {
-		panic("migrations path is required")
-	}
+	cfg := config.LoadConfig(configPath)
 
-	m, err := migrate.New(
-		"file://"+migrationsPath,
-		fmt.Sprintf("sqlite3://%s?x-migrations-table=%s", storagePath, migrationsTable),
-	)
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
+	log.Println("Connecting to MongoDB...")
+
+	storage, err := mongodb.New(ctx, cfg.Mongo.URI, cfg.Mongo.Database)
 	if err != nil {
-		panic(err)
+		log.Fatalf("failed to connect to mongodb: %v", err)
 	}
+	defer storage.Close(ctx)
 
-	if err := m.Up(); err != nil {
-		if err == migrate.ErrNoChange {
-			fmt.Println("no migrations to apply")
-		} else {
-			panic(err)
+	log.Println("MongoDB connected, indexes created successfully")
+
+	if seedApps {
+		log.Println("Seeding test apps...")
+
+		// Seed a default test app
+		if err := storage.SeedApp(ctx, 1, "test", "test-secret"); err != nil {
+			log.Fatalf("failed to seed test app: %v", err)
 		}
-		return
+		log.Println("Test app seeded (id=1, name=test)")
+
+		// Seed a production app example
+		if err := storage.SeedApp(ctx, 2, "production", "production-secret-change-me"); err != nil {
+			log.Fatalf("failed to seed production app: %v", err)
+		}
+		log.Println("Production app seeded (id=2, name=production)")
 	}
 
-	fmt.Println("migrations applied successfully")
+	fmt.Println("Database initialization completed successfully")
 }

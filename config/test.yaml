@@ -1,0 +1,10 @@
+env: "local"
+token_ttl: 1h
+refresh_token_ttl: 720h
+grpc:
+  port: 50052
+  timeout: 10s
+mongo:
+  uri: "mongodb://localhost:27017"
+  database: "sso_test"
+  refresh_token_pepper: "test-pepper"

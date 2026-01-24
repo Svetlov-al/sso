@@ -1,0 +1,25 @@
+# Production config - values are loaded from environment variables
+# This file serves as documentation for required environment variables
+# 
+# Required environment variables:
+#   MONGO_URI              - MongoDB connection string
+#   MONGO_DATABASE         - MongoDB database name
+#   REFRESH_TOKEN_PEPPER   - Secret for hashing refresh tokens
+#
+# Optional environment variables (with defaults):
+#   ENV                    - Environment name (default: prod)
+#   TOKEN_TTL              - Access token TTL (default: 1h)
+#   REFRESH_TOKEN_TTL      - Refresh token TTL (default: 720h)
+#   GRPC_PORT              - gRPC server port (default: 50051)
+#   GRPC_TIMEOUT           - gRPC timeout (default: 10s)
+
+env: "prod"
+token_ttl: 1h
+refresh_token_ttl: 720h
+grpc:
+  port: 50051
+  timeout: 10s
+mongo:
+  uri: "mongodb://localhost:27017"
+  database: "sso"
+  refresh_token_pepper: "CHANGE-ME-IN-PRODUCTION"

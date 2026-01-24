@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"log/slog"
 	"os"
 	"os/signal"
@@ -8,6 +9,7 @@ import (
 	"sso/internal/config"
 	"sso/internal/lib/handlers/slogpretty"
 	"syscall"
+	"time"
 )
 
 const (
@@ -16,11 +18,16 @@ const (
 )
 
 func main() {
-	cfg := config.LoadConfig("config/local.yaml")
+	configPath := os.Getenv("CONFIG_PATH")
+	if configPath == "" {
+		configPath = "config/local.yaml"
+	}
+
+	cfg := config.LoadConfig(configPath)
 	logger := setupLogger(cfg.Env)
 	logger.Info("starting sso server")
 
-	application := app.New(logger, cfg.Grpc.Port, cfg.StoragePath, cfg.TokenTTL)
+	application := app.New(logger, cfg)
 	go application.GRPCSrv.MustRun()
 
 	stop := make(chan os.Signal, 1)
@@ -28,6 +35,12 @@ func main() {
 	<-stop
 
 	application.GRPCSrv.Stop()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	if err := application.Close(ctx); err != nil {
+		logger.Error("failed to close application", slog.String("error", err.Error()))
+	}
 
 	logger.Info("shutting down sso server")
 }

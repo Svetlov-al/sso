@@ -1,0 +1,54 @@
+services:
+  mongo:
+    image: mongo:7
+    container_name: sso-mongo
+    restart: unless-stopped
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongo_data:/data/db
+    environment:
+      - MONGO_INITDB_DATABASE=sso
+    healthcheck:
+      test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+  dbinit:
+    image: sso:latest
+    container_name: sso-dbinit
+    depends_on:
+      mongo:
+        condition: service_healthy
+    environment:
+      - MONGO_URI=mongodb://mongo:27017
+      - MONGO_DATABASE=sso
+      - REFRESH_TOKEN_PEPPER=${REFRESH_TOKEN_PEPPER:-docker-pepper-change-in-prod}
+    command: ["/app/dbinit", "--seed"]
+    restart: "no"
+
+  sso:
+    image: sso:latest
+    container_name: sso-app
+    restart: unless-stopped
+    ports:
+      - "50051:50051"
+    depends_on:
+      dbinit:
+        condition: service_completed_successfully
+      mongo:
+        condition: service_healthy
+    environment:
+      - ENV=prod
+      - MONGO_URI=mongodb://mongo:27017
+      - MONGO_DATABASE=sso
+      - GRPC_PORT=50051
+      - GRPC_TIMEOUT=10s
+      - TOKEN_TTL=1h
+      - REFRESH_TOKEN_TTL=720h
+      - REFRESH_TOKEN_PEPPER=${REFRESH_TOKEN_PEPPER:-docker-pepper-change-in-prod}
+
+volumes:
+  mongo_data:
